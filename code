@@ -1,57 +1,125 @@
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mock.web.server.MockServerWebExchange;
-import org.springframework.web.reactive.function.server.ServerRequest;
-import org.springframework.web.reactive.function.server.ServerResponse;
-import reactor.core.publisher.Mono;
+@Slf4j
+@Configuration
+@RequiredArgsConstructor
+public class GatewayRouteConfig {
 
-import java.util.Map;
-import java.util.Set;
+    private static final String BEARER_STRING = "Bearer ";
+    private static final String CBX_TOKEN = "CBX_TOKEN";
+    private static final String SID = "sid";
+    private final RouteProperties routeProperties;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.Mockito.*;
+    @Autowired
+    private OBOGatewayFilterFactory oboGatewayFilterFactory;
+    private final IdaTokenProviderFactory idaTokenProviderFactory;
 
-@ExtendWith(MockitoExtension.class)
-class TokenFilterTest {
+    @Bean
+    public RouterFunction<ServerResponse> customRouteLocator() {
 
-    @Mock
-    private ServerRequest request;
+//        List<RouterFunctions.Builder> routes = new ArrayList<>();
+//        List<RouterFunction<ServerResponse>> routes = new ArrayList<>();
 
-    @Mock
-    private ServerRequest.Builder requestBuilder;
+        RouterFunctions.Builder allRoutes = GatewayRouterFunctions.route("/");
 
-    @Mock
-    private ServerRequest modifiedRequest;
-
-    @InjectMocks
-    private TokenFilter tokenFilter; // Replace with the actual class name
-
-    @BeforeEach
-    void setUp() {
-        // Mock cookies map with CBX_TOKEN
-        Map<String, ServerRequest.Cookie> cookies = Map.of(
-            "CBX_TOKEN", new ServerRequest.Cookie("CBX_TOKEN", "mockedToken")
-        );
-
-        when(request.cookies()).thenReturn(cookies);
-        when(requestBuilder.build()).thenReturn(modifiedRequest);
+        for (RouteDefinitionProperties r : routeProperties.getRoutes()) {
+            Filters filters = r.getFilters();
+            String resourceUri = Optional.ofNullable(filters.getResourceUri()).orElse("");
+            String rewritePathRegexPre, rewritePathRegexPost;
+            if (filters.getRewritePath() != null) {
+                String[] parts = filters.getRewritePath().split(",");
+                rewritePathRegexPre = parts[0].trim();
+                rewritePathRegexPost = parts[1].trim();
+            } else {
+                rewritePathRegexPre = "";
+                rewritePathRegexPost = "";
+            }
+            allRoutes.add(this.buildRoute(r.getId(), r.getPredicates().get(0), r.getUri(),rewritePathRegexPre,rewritePathRegexPost, filters.isEnableOBO(), resourceUri));
+//            if (filters.isEnableOBO()) {
+//                route(r.getId()).route(path(r.getPredicates().get(0)), http(r.getUri()))
+//                         .before(rewritePath(rewritePathRegexPre, rewritePathRegexPost))
+//                         .filter(handleOBORequest()).build();
+//        }
+//              else{
+//                route(r.getId()).route(path(r.getPredicates().get(0)), http(r.getUri()))
+//                    .before(rewritePath(rewritePathRegexPre, rewritePathRegexPost)).build();
+//        }
+        }
+        return allRoutes.build();
     }
-
-    @Test
-    void testCbxTokenInjectorFilter() {
-        // Mock request
-        when(request.cookies()).thenReturn(Map.of("CBX_TOKEN", new ServerRequest.Cookie("CBX_TOKEN", "mockedToken")));
-        when(request.uri()).thenReturn(URI.create("/test"));
-
-        // Invoke the filter function
-        Mono<ServerResponse> response = tokenFilter.cbxTokenInjectorFilter.handle(request, req -> Mono.just(ServerResponse.ok().build()));
-
-        // Verify
-        assertNotNull(response);
-        verify(request, times(1)).cookies();
+    public RouterFunction<ServerResponse> buildRoute(String id, String routePredicate, String routeUri, String prefixPath, String postfixPath, Boolean oboEnabled, String resourceUri) {
+        log.info("Building Route for id={}, routePredicate={}, routeUri={}, resoureUri={}, oboEnabled={}", id, routePredicate, routeUri, resourceUri, oboEnabled);
+        RouterFunction<ServerResponse> baseRoute = route(id)
+                .route(path(routePredicate), http(routeUri))
+                .before(rewritePath(prefixPath, postfixPath)).build();
+        if(!oboEnabled && resourceUri.isBlank()) {
+            log.info("When obo is not enabled and resource uri is not set");
+            HandlerFilterFunction<ServerResponse, ServerResponse> cbxTokenInjectorFilter = (request, next) -> {
+                StringBuilder cbxToken = new StringBuilder();
+                Set<String> cookieKeys = request.cookies().keySet();
+                for(String cookiename: cookieKeys) {
+                    log.info("Cookiename:: {}", cookiename);
+                    cbxToken.append(cookiename.startsWith(CBX_TOKEN)?request.cookies().get(cookiename).get(0).getValue():"");
+                }
+                log.info("cbx token:: {}", cbxToken);
+                if (cbxToken!=null ) {
+                    ServerRequest modifiedRequest = ServerRequest.from(request)
+                            .headers(headers -> {
+                                headers.set(CBX_TOKEN, cbxToken.toString());
+                            })
+                            .param(SID, extractSid(cbxToken.toString()))
+                            .build();
+                    log.info("Here is modified request:: {}", modifiedRequest);
+                    return next.handle(modifiedRequest);
+                }
+                log.info("When CBX_TOKEN is null");
+                return  next.handle(request);
+            };
+            return baseRoute.filter(cbxTokenInjectorFilter);
+        }
+        else if (StringUtils.isNotBlank(resourceUri)) {
+            log.info("When Resource URI:: {} is present and oboEnabled:: {}", resourceUri, oboEnabled);
+            HandlerFilterFunction<ServerResponse, ServerResponse> tokenInjectorFilter = (request, next) -> {
+                IdaTokenProvider provider = oboEnabled ? idaTokenProviderFactory.getOBOProviderForResource(resourceUri)
+                        : idaTokenProviderFactory.getProviderForResource(resourceUri);
+                String token = BEARER_STRING + provider.get().getAccessToken();
+                log.info("Retrieved Token={}, OBO enabled={}", token,oboEnabled);
+                StringBuilder cbxToken = new StringBuilder();
+                log.info("Building the cbx token from cookies");
+                Set<String> cookieKeys = request.cookies().keySet();
+                log.info("Resource cookie keys:: {}", cookieKeys);
+                for(String cookiename: cookieKeys) {
+                    log.info("Resource Cookiename:: {}", cookiename);
+                    cbxToken.append(cookiename.startsWith(CBX_TOKEN)?request.cookies().get(cookiename).get(0).getValue():"");
+                }
+                log.info("Here is cbx token:: {}", cbxToken);
+                ServerRequest modifiedRequest = ServerRequest.from(request)
+                        .headers(headers -> {headers.set(AUTHORIZATION, token); headers.set(CBX_TOKEN, cbxToken.toString());})
+                        .param(SID, extractSid(cbxToken.toString()))
+                        .build();
+                return next.handle(modifiedRequest);
+            };
+            return baseRoute.filter(tokenInjectorFilter);
+        }
+        HandlerFilterFunction<ServerResponse, ServerResponse> tokenInjectorFilter = (request, next) -> {
+            String cbxToken = CookieUtils.concatenateCookieValues(request.cookies());//
+            log.info("Here is default modified request");
+            ServerRequest modifiedRequest = ServerRequest.from(request)
+                    .headers(headers -> {headers.set(CBX_TOKEN, cbxToken.toString());})
+                    .param(SID, extractSid(cbxToken))
+                    .build();
+            log.info("Here is default modified request:: {}", modifiedRequest);
+            return next.handle(modifiedRequest);
+        };
+        log.info("Handling when only OBO flag is enabled");
+        return route(id).route(path(routePredicate), http(routeUri))
+                .filter(tokenInjectorFilter)
+//                    .before(rewritePath(prefixPath, postfixPath))
+                .filter(oboGatewayFilterFactory.handleOBORequest(routeUri, prefixPath, postfixPath))
+                .build();
+    }
+    public String extractSid(String cbxToken) {
+        log.debug("extract claims from token " + cbxToken);
+        DecodedJWT cbxTokenDecoded = JWT.decode(cbxToken);
+        Map<String, Claim> cbxClaims = cbxTokenDecoded.getClaims();
+        return String.valueOf(cbxClaims.get("SID")).replace("\"", "");
     }
 }
