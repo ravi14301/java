@@ -1,0 +1,109 @@
+@Slf4j
+@Configuration
+@RequiredArgsConstructor
+public class GatewayRouteConfig {
+
+    private static final String BEARER_STRING = "Bearer ";
+    private static final String CBX_TOKEN = "CBX_TOKEN";
+    private static final String SID = "sid";
+    
+    private final RouteProperties routeProperties;
+    private final IdaTokenProviderFactory idaTokenProviderFactory;
+
+    @Autowired
+    private OBOGatewayFilterFactory oboGatewayFilterFactory;
+
+    @Bean
+    public RouterFunction<ServerResponse> customRouteLocator() {
+        RouterFunctions.Builder allRoutes = GatewayRouterFunctions.route("/");
+
+        for (RouteDefinitionProperties r : routeProperties.getRoutes()) {
+            Filters filters = r.getFilters();
+            String resourceUri = Optional.ofNullable(filters.getResourceUri()).orElse("");
+            String[] rewritePaths = getRewritePaths(filters.getRewritePath());
+
+            allRoutes.add(buildRoute(
+                r.getId(), 
+                r.getPredicates().get(0), 
+                r.getUri(),
+                rewritePaths[0], 
+                rewritePaths[1], 
+                filters.isEnableOBO(), 
+                resourceUri
+            ));
+        }
+        return allRoutes.build();
+    }
+
+    private RouterFunction<ServerResponse> buildRoute(String id, String routePredicate, String routeUri, 
+                                                      String prefixPath, String postfixPath, boolean oboEnabled, 
+                                                      String resourceUri) {
+        log.info("Building Route for id={}, routePredicate={}, routeUri={}, resourceUri={}, oboEnabled={}", 
+                 id, routePredicate, routeUri, resourceUri, oboEnabled);
+
+        RouterFunction<ServerResponse> baseRoute = createBaseRoute(id, routePredicate, routeUri, prefixPath, postfixPath);
+
+        if (!oboEnabled && resourceUri.isBlank()) {
+            return baseRoute.filter(this::injectCbxToken);
+        } else if (!resourceUri.isBlank()) {
+            return baseRoute.filter(request -> injectAuthorizationToken(request, resourceUri, oboEnabled));
+        }
+
+        return baseRoute.filter(this::injectCbxToken)
+                        .filter(oboGatewayFilterFactory.handleOBORequest(routeUri, prefixPath, postfixPath));
+    }
+
+    private RouterFunction<ServerResponse> createBaseRoute(String id, String routePredicate, String routeUri, 
+                                                           String prefixPath, String postfixPath) {
+        return route(id)
+                .route(path(routePredicate), http(routeUri))
+                .before(rewritePath(prefixPath, postfixPath))
+                .build();
+    }
+
+    private ServerResponse injectCbxToken(ServerRequest request, HandlerFunction<ServerResponse> next) {
+        String cbxToken = extractCbxToken(request);
+        ServerRequest modifiedRequest = ServerRequest.from(request)
+                .headers(headers -> headers.set(CBX_TOKEN, cbxToken))
+                .param(SID, extractSid(cbxToken))
+                .build();
+
+        return next.handle(modifiedRequest);
+    }
+
+    private ServerResponse injectAuthorizationToken(ServerRequest request, String resourceUri, boolean oboEnabled) {
+        IdaTokenProvider provider = oboEnabled ? idaTokenProviderFactory.getOBOProviderForResource(resourceUri)
+                                               : idaTokenProviderFactory.getProviderForResource(resourceUri);
+        String token = BEARER_STRING + provider.get().getAccessToken();
+        String cbxToken = extractCbxToken(request);
+
+        ServerRequest modifiedRequest = ServerRequest.from(request)
+                .headers(headers -> {
+                    headers.set(AUTHORIZATION, token);
+                    headers.set(CBX_TOKEN, cbxToken);
+                })
+                .param(SID, extractSid(cbxToken))
+                .build();
+
+        return request.next().handle(modifiedRequest);
+    }
+
+    private String extractCbxToken(ServerRequest request) {
+        return request.cookies().entrySet().stream()
+                .filter(entry -> entry.getKey().startsWith(CBX_TOKEN))
+                .map(entry -> entry.getValue().get(0).getValue())
+                .collect(Collectors.joining());
+    }
+
+    private String extractSid(String cbxToken) {
+        return JwtUtils.extractClaim(cbxToken, "SID");
+    }
+
+    private String[] getRewritePaths(String rewritePath) {
+        if (rewritePath != null) {
+            String[] parts = rewritePath.split(",");
+            return new String[]{parts[0].trim(), parts[1].trim()};
+        }
+        return new String[]{"", ""};
+    }
+}
