@@ -1,0 +1,196 @@
+package com.yourpackage.config;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+import static org.springframework.web.reactive.function.server.RequestPredicates.path;
+import static org.springframework.web.reactive.function.server.RouterFunctions.route;
+
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.interfaces.Claim;
+import com.auth0.jwt.interfaces.DecodedJWT;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.reactive.function.server.*;
+import reactor.core.publisher.Mono;
+
+import java.util.*;
+
+@Slf4j
+@ExtendWith(MockitoExtension.class)
+class GatewayRouteConfigTest {
+
+    @Mock
+    private RouteProperties routeProperties;
+    
+    @Mock
+    private OBOGatewayFilterFactory oboGatewayFilterFactory;
+    
+    @Mock
+    private IdaTokenProviderFactory idaTokenProviderFactory;
+    
+    @InjectMocks
+    private GatewayRouteConfig gatewayRouteConfig;
+
+    private static final String TEST_ROUTE_ID = "testRoute";
+    private static final String TEST_ROUTE_URI = "http://localhost:8080";
+    private static final String TEST_PREDICATE = "/test";
+    private static final String TEST_PREFIX = "/old";
+    private static final String TEST_POSTFIX = "/new";
+    private static final String TEST_CBX_TOKEN = "testCBXToken";
+    private static final String TEST_SID = "testSID";
+
+    @BeforeEach
+    void setUp() {
+        // Mocking behavior if needed
+    }
+
+    @Test
+    void testCustomRouteLocator_CreatesRoutes() {
+        // Given
+        RouteDefinitionProperties mockRoute = new RouteDefinitionProperties();
+        Filters filters = new Filters();
+        filters.setEnableOBO(false);
+        filters.setResourceUri("");
+        mockRoute.setId(TEST_ROUTE_ID);
+        mockRoute.setUri(TEST_ROUTE_URI);
+        mockRoute.setFilters(filters);
+        mockRoute.setPredicates(Collections.singletonList(TEST_PREDICATE));
+
+        when(routeProperties.getRoutes()).thenReturn(Collections.singletonList(mockRoute));
+
+        // When
+        RouterFunction<ServerResponse> routes = gatewayRouteConfig.customRouteLocator();
+
+        // Then
+        assertNotNull(routes);
+    }
+
+    @Test
+    void testBuildRoute_Basic() {
+        // When
+        RouterFunction<ServerResponse> route = gatewayRouteConfig.buildRoute(
+                TEST_ROUTE_ID, TEST_PREDICATE, TEST_ROUTE_URI, TEST_PREFIX, TEST_POSTFIX, false, ""
+        );
+
+        // Then
+        assertNotNull(route);
+    }
+
+    @Test
+    void testBuildRoute_WithOBOEnabled() {
+        // When
+        RouterFunction<ServerResponse> route = gatewayRouteConfig.buildRoute(
+                TEST_ROUTE_ID, TEST_PREDICATE, TEST_ROUTE_URI, TEST_PREFIX, TEST_POSTFIX, true, ""
+        );
+
+        // Then
+        assertNotNull(route);
+    }
+
+    @Test
+    void testBuildRoute_WithResourceUri() {
+        // When
+        RouterFunction<ServerResponse> route = gatewayRouteConfig.buildRoute(
+                TEST_ROUTE_ID, TEST_PREDICATE, TEST_ROUTE_URI, TEST_PREFIX, TEST_POSTFIX, false, "resourceUri"
+        );
+
+        // Then
+        assertNotNull(route);
+    }
+
+    @Test
+    void testExtractSid_ValidToken() {
+        // Given
+        DecodedJWT mockJWT = mock(DecodedJWT.class);
+        Map<String, Claim> claims = new HashMap<>();
+        Claim sidClaim = mock(Claim.class);
+        when(sidClaim.asString()).thenReturn(TEST_SID);
+        claims.put("SID", sidClaim);
+
+        when(mockJWT.getClaims()).thenReturn(claims);
+        when(mockJWT.getClaims().get("SID")).thenReturn(sidClaim);
+
+        // When
+        String extractedSid = gatewayRouteConfig.extractSid(TEST_CBX_TOKEN);
+
+        // Then
+        assertEquals(TEST_SID, extractedSid);
+    }
+
+    @Test
+    void testExtractSid_InvalidToken() {
+        // When
+        String extractedSid = gatewayRouteConfig.extractSid("");
+
+        // Then
+        assertEquals("null", extractedSid);
+    }
+
+    @Test
+    void testCbxTokenInjectorFilter_AddsToken() {
+        // Given
+        ServerRequest mockRequest = mock(ServerRequest.class);
+        when(mockRequest.cookies()).thenReturn(Collections.singletonMap("CBX_TOKEN", List.of(new HttpCookie("CBX_TOKEN", TEST_CBX_TOKEN))));
+        HandlerFilterFunction<ServerResponse, ServerResponse> filter = (request, next) -> next.handle(request);
+
+        // When
+        ServerRequest modifiedRequest = ServerRequest.from(mockRequest)
+                .headers(headers -> headers.set("CBX_TOKEN", TEST_CBX_TOKEN))
+                .param("sid", TEST_SID)
+                .build();
+
+        // Then
+        assertEquals(TEST_CBX_TOKEN, modifiedRequest.headers().firstHeader("CBX_TOKEN"));
+        assertEquals(TEST_SID, modifiedRequest.queryParams().getFirst("sid"));
+    }
+
+    @Test
+    void testTokenInjectorFilter_WithResourceUri() {
+        // Given
+        IdaTokenProvider mockProvider = mock(IdaTokenProvider.class);
+        when(mockProvider.get()).thenReturn(new Token("mockToken"));
+        when(idaTokenProviderFactory.getProviderForResource("resourceUri")).thenReturn(mockProvider);
+
+        ServerRequest mockRequest = mock(ServerRequest.class);
+        when(mockRequest.cookies()).thenReturn(Collections.singletonMap("CBX_TOKEN", List.of(new HttpCookie("CBX_TOKEN", TEST_CBX_TOKEN))));
+
+        HandlerFilterFunction<ServerResponse, ServerResponse> filter = (request, next) -> next.handle(request);
+
+        // When
+        String token = "Bearer mockToken";
+        ServerRequest modifiedRequest = ServerRequest.from(mockRequest)
+                .headers(headers -> headers.set("Authorization", token))
+                .build();
+
+        // Then
+        assertEquals(token, modifiedRequest.headers().firstHeader("Authorization"));
+    }
+
+    @Test
+    void testCustomRouteLocator_NoRoutes() {
+        // Given
+        when(routeProperties.getRoutes()).thenReturn(Collections.emptyList());
+
+        // When
+        RouterFunction<ServerResponse> routes = gatewayRouteConfig.customRouteLocator();
+
+        // Then
+        assertNotNull(routes);
+    }
+
+    @Test
+    void testBuildRoute_WhenResourceUriIsBlank() {
+        // When
+        RouterFunction<ServerResponse> route = gatewayRouteConfig.buildRoute(
+                TEST_ROUTE_ID, TEST_PREDICATE, TEST_ROUTE_URI, TEST_PREFIX, TEST_POSTFIX, false, ""
+        );
+
+        // Then
+        assertNotNull(route);
+    }
+}
