@@ -1,0 +1,57 @@
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.server.MockServerWebExchange;
+import org.springframework.web.reactive.function.server.ServerRequest;
+import org.springframework.web.reactive.function.server.ServerResponse;
+import reactor.core.publisher.Mono;
+
+import java.util.Map;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class TokenFilterTest {
+
+    @Mock
+    private ServerRequest request;
+
+    @Mock
+    private ServerRequest.Builder requestBuilder;
+
+    @Mock
+    private ServerRequest modifiedRequest;
+
+    @InjectMocks
+    private TokenFilter tokenFilter; // Replace with the actual class name
+
+    @BeforeEach
+    void setUp() {
+        // Mock cookies map with CBX_TOKEN
+        Map<String, ServerRequest.Cookie> cookies = Map.of(
+            "CBX_TOKEN", new ServerRequest.Cookie("CBX_TOKEN", "mockedToken")
+        );
+
+        when(request.cookies()).thenReturn(cookies);
+        when(requestBuilder.build()).thenReturn(modifiedRequest);
+    }
+
+    @Test
+    void testCbxTokenInjectorFilter() {
+        // Mock request
+        when(request.cookies()).thenReturn(Map.of("CBX_TOKEN", new ServerRequest.Cookie("CBX_TOKEN", "mockedToken")));
+        when(request.uri()).thenReturn(URI.create("/test"));
+
+        // Invoke the filter function
+        Mono<ServerResponse> response = tokenFilter.cbxTokenInjectorFilter.handle(request, req -> Mono.just(ServerResponse.ok().build()));
+
+        // Verify
+        assertNotNull(response);
+        verify(request, times(1)).cookies();
+    }
+}
