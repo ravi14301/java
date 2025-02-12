@@ -1,0 +1,46 @@
+   @Mock
+    private ServerRequest request;
+
+    @Mock
+    private ServerResponse response;
+
+    @Mock
+    private ServerRequest.Builder requestBuilder;
+
+    @InjectMocks
+    private MyRouterFunction routerFunction; // Replace with your actual class name
+
+    @BeforeEach
+    void setUp() {
+        when(request.uri()).thenReturn(URI.create("/test"));
+        when(request.cookies()).thenReturn(Map.of("CBX_TOKEN", List.of(new HttpCookie("CBX_TOKEN", "mockedToken"))));
+        when(requestBuilder.build()).thenReturn(request);
+    }
+
+    @Test
+    void testCbxTokenInjectorFilter() {
+        HandlerFilterFunction<ServerResponse, ServerResponse> filterFunction = (request, next) -> {
+            String cbxToken = request.cookies()
+                .getOrDefault("CBX_TOKEN", List.of())
+                .stream()
+                .findFirst()
+                .map(HttpCookie::getValue)
+                .orElse("");
+
+            if (!cbxToken.isEmpty()) {
+                ServerRequest modifiedRequest = ServerRequest.from(request)
+                        .headers(headers -> headers.set("CBX_TOKEN", cbxToken))
+                        .build();
+                return next.handle(modifiedRequest);
+            }
+            return next.handle(request);
+        };
+
+        Mono<ServerResponse> responseMono = filterFunction.filter(request, req -> Mono.just(response));
+
+        StepVerifier.create(responseMono)
+                .expectNext(response)
+                .verifyComplete();
+
+        verify(request, times(1)).cookies();
+    }
