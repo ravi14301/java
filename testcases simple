@@ -1,0 +1,76 @@
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.reactive.function.server.RouterFunction;
+import org.springframework.web.reactive.function.server.ServerRequest;
+import org.springframework.web.reactive.function.server.ServerResponse;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class GatewayRouteConfigTest {
+
+    @Mock
+    private RouteProperties routeProperties;
+
+    @Mock
+    private OBOGatewayFilterFactory oboGatewayFilterFactory;
+
+    @Mock
+    private IdaTokenProviderFactory idaTokenProviderFactory;
+
+    @InjectMocks
+    private GatewayRouteConfig gatewayRouteConfig;
+
+    @BeforeEach
+    void setUp() {
+        when(routeProperties.getRoutes()).thenReturn(List.of(
+                new RouteDefinitionProperties("testRoute", new Filters(false, "/api/*,/v1/*", "http://localhost"))
+        ));
+    }
+
+    @Test
+    void testCustomRouteLocator() {
+        RouterFunction<ServerResponse> routerFunction = gatewayRouteConfig.customRouteLocator();
+        assertNotNull(routerFunction);
+    }
+
+    @Test
+    void testBuildRoute_withoutOBOAndResourceUri() {
+        RouterFunction<ServerResponse> route = gatewayRouteConfig.buildRoute(
+                "testId", "/test", "http://localhost", "/api/*", "/v1/*", false, ""
+        );
+        assertNotNull(route);
+    }
+
+    @Test
+    void testBuildRoute_withResourceUri() {
+        RouterFunction<ServerResponse> route = gatewayRouteConfig.buildRoute(
+                "testId", "/test", "http://localhost", "/api/*", "/v1/*", false, "resourceUri"
+        );
+        assertNotNull(route);
+    }
+
+    @Test
+    void testBuildRoute_withOBOEnabled() {
+        RouterFunction<ServerResponse> route = gatewayRouteConfig.buildRoute(
+                "testId", "/test", "http://localhost", "/api/*", "/v1/*", true, "resourceUri"
+        );
+        assertNotNull(route);
+    }
+
+    @Test
+    void testExtractSid() {
+        String fakeToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJTSUQiOiIxMjM0NTY3ODkwIn0.HqfNwo5XtYPmDFl7z0bPA7mUR3vOq5NcXIV4_FT5U3g";
+        String sid = gatewayRouteConfig.extractSid(fakeToken);
+        assertEquals("1234567890", sid);
+    }
+}
