@@ -1,0 +1,100 @@
+
+@Service
+@AllArgsConstructor
+//@DependsOn({"idaOnBehalfOfRestTemplate", "idaOnBehalfOfDealWorkRestTemplate"})
+@DependsOn({"idaOnBehalfOfRestTemplate"})
+public class OBOGatewayFilterFactory{
+
+    @Qualifier("idaOnBehalfOfRestTemplate")
+    private RestTemplate idaOnBehalfOfRestTemplate;
+
+    @Qualifier("idaOnBehalfOfDealWorkRestTemplate")
+    private RestTemplate idaOnBehalfOfDealWorkRestTemplate;
+
+    @Qualifier("idaOnBehalfOfDealWorkRestTemplate")
+    private RestTemplate idaDealWorkRestTemplate;
+
+    @Value("${font.types}")
+    private List<String> fontTypes;
+
+
+    public HandlerFilterFunction<ServerResponse, ServerResponse> handleOBORequest(String reqUri, String prefixPath, String postfixPath) {
+        try{
+            return (request, response) -> {
+
+                HttpEntity<String> requestEntity = null;
+                String requestUrl = reqUri + request.path().replaceAll(prefixPath, postfixPath);;
+
+                     StringBuffer jb = new StringBuffer();
+                    if(request.method() != HttpMethod.GET && request.method() != HttpMethod.DELETE) {
+                        String line = null;
+                        BufferedReader reader = request.servletRequest().getReader();
+                        while ((line = reader.readLine()) != null)
+                            jb.append(line);
+                        JSONObject jsonObject = new JSONObject(jb.toString());
+                    }
+                    HttpHeaders headers = new HttpHeaders();
+                    headers.setContentType(MediaType.APPLICATION_JSON);
+                    headers.add("X-Requester-SID", request.headers().asHttpHeaders().getFirst("X-Requester-SID"));
+                    headers.add("X-Requester-FID", request.headers().asHttpHeaders().getFirst("X-Requester-FID"));
+                    requestEntity = new HttpEntity<>(jb.length()==0?null:jb.toString(), headers);
+                    requestUrl = UriComponentsBuilder.fromUriString(requestUrl)
+                            .queryParams(request.params())
+                            .build().toUriString();
+
+                RestTemplate restTemplate =null;
+                if (prefixPath.toLowerCase().contains("dealworks-api"))
+                    restTemplate = idaDealWorkRestTemplate;
+                else if (prefixPath.toLowerCase().contains("cre"))
+                    restTemplate = idaOnBehalfOfRestTemplate;
+                else if (prefixPath.toLowerCase().contains("dealwork"))
+                    restTemplate = idaOnBehalfOfDealWorkRestTemplate;
+                else{
+                    restTemplate = new RestTemplate();
+                }
+
+                if(isRequestForFont(requestUrl, fontTypes)) {
+                    ResponseEntity<byte[]> res = restTemplate.exchange(requestUrl, request.method(), requestEntity, byte[].class);
+                    return writeByteResponse(res);
+                }
+                ResponseEntity<String> res = restTemplate.exchange(requestUrl, request.method(), requestEntity, String.class);
+                return writeResponse(res);
+            };
+        }catch(HttpStatusCodeException statusCodeException) {
+            return (request, response) -> handleException(statusCodeException.getStatusCode(), statusCodeException.getResponseBodyAs(String.class));
+        }
+        catch(Exception e) {
+            System.out.println(Arrays.toString(e.getStackTrace()));
+        }
+        return null;
+    }
+
+    static ServerResponse writeResponse(ResponseEntity<String> res){
+        String responseBody = res.getBody();
+        MediaType responseContentType = res.getHeaders().getContentType();
+        return ServerResponse.status(res.getStatusCode()).contentType(responseContentType==null?MediaType.APPLICATION_JSON:responseContentType).body(responseBody==null?"":responseBody);
+
+    }
+
+    static ServerResponse writeByteResponse(ResponseEntity<byte[]> res){
+        byte[] responseBody = res.getBody();
+        MediaType responseContentType = res.getHeaders().getContentType();
+        return ServerResponse.status(res.getStatusCode()).contentType(responseContentType==null?MediaType.APPLICATION_JSON:responseContentType).body(responseBody==null?"":responseBody);
+
+    }
+
+    static ServerResponse handleException(HttpStatusCode status, String errorMessage) {
+        String errorJson =String.format("""
+                            {
+                                "error": "%s"
+                            }""", errorMessage);
+        ServerResponse response = ServerResponse.status(status).body(errorJson);
+
+        return response;
+    }
+
+    static boolean isRequestForFont(String s, List<String> fontExtensions) {
+        return fontExtensions.stream().anyMatch(s::endsWith);
+    }
+
+}
