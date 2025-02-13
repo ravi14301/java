@@ -1,0 +1,73 @@
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.server.reactive.ServerHttpResponse;
+import org.springframework.web.reactive.function.server.RouterFunction;
+import org.springframework.web.reactive.function.server.ServerRequest;
+import org.springframework.web.reactive.function.server.ServerResponse;
+import reactor.core.publisher.Mono;
+import java.util.List;
+import java.util.Optional;
+
+@ExtendWith(MockitoExtension.class)
+class GatewayRouteConfigTest {
+
+    @Mock
+    private RouteProperties routeProperties;
+    
+    @Mock
+    private IdaTokenProviderFactory idaTokenProviderFactory;
+    
+    @Mock
+    private OBOGatewayFilterFactory oboGatewayFilterFactory;
+    
+    @InjectMocks
+    private GatewayRouteConfig gatewayRouteConfig;
+
+    @BeforeEach
+    void setUp() {
+        // Mocking RouteProperties setup
+    }
+
+    @Test
+    void testCustomRouteLocatorWithNoRoutes() {
+        when(routeProperties.getRoutes()).thenReturn(List.of());
+        RouterFunction<ServerResponse> routerFunction = gatewayRouteConfig.customRouteLocator();
+        assertNotNull(routerFunction);
+    }
+
+    @Test
+    void testExtractCbxTokenWhenPresent() {
+        ServerRequest request = mock(ServerRequest.class);
+        when(request.cookies()).thenReturn(Map.of("CBX_TOKEN", List.of(new HttpCookie("CBX_TOKEN", "test-token"))));
+        String cbxToken = gatewayRouteConfig.extractCbxToken(request);
+        assertEquals("test-token", cbxToken);
+    }
+
+    @Test
+    void testExtractCbxTokenWhenMissing() {
+        ServerRequest request = mock(ServerRequest.class);
+        when(request.cookies()).thenReturn(Map.of());
+        String cbxToken = gatewayRouteConfig.extractCbxToken(request);
+        assertEquals("", cbxToken);
+    }
+
+    @Test
+    void testGetRewritePathsValidInput() {
+        String[] paths = gatewayRouteConfig.getRewritePaths("/api/v1,/service/v2");
+        assertArrayEquals(new String[]{"/api/v1", "/service/v2"}, paths);
+    }
+
+    @Test
+    void testGetRewritePathsInvalidInput() {
+        String[] paths = gatewayRouteConfig.getRewritePaths(null);
+        assertArrayEquals(new String[]{"", ""}, paths);
+    }
+}
