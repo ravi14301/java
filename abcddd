@@ -1,0 +1,32 @@
+
+HandlerFilterFunction<ServerResponse, ServerResponse> mockFilter = mock(HandlerFilterFunction.class);
+
+        // Stub the behavior of the filter to return the next handler’s response
+        when(mockFilter.filter(any(), any()))
+            .thenAnswer(invocation -> {
+                ServerRequest request = invocation.getArgument(0);
+                HandlerFunction<ServerResponse> next = invocation.getArgument(1);
+                return next.handle(request); // Pass request to the next handler
+            });
+
+        // Inject mock filter into the route
+        RouterFunction<ServerResponse> route = RouterFunctions.route()
+            .filter(mockFilter) // Attach the mock filter
+            .build();
+
+        MockServerRequest request = MockServerRequest.builder().build();
+        AtomicBoolean filterExecuted = new AtomicBoolean(false);
+
+        // When: Simulating request execution
+        route.route(request).ifPresentOrElse(handler -> {
+            try {
+                filterExecuted.set(true);
+                handler.handle(request).block(); // Execute request
+            } catch (Exception e) {
+                fail("Exception occurred during request handling: " + e.getMessage());
+            }
+        }, () -> fail("Route function did not return a handler"));
+
+        // Then: Verify that the filter was invoked
+        verify(mockFilter, times(1)).filter(any(), any());
+        assertTrue(filterExecuted.get(), "The filter was not executed");
