@@ -30,3 +30,387 @@ HandlerFilterFunction<ServerResponse, ServerResponse> mockFilter = mock(HandlerF
         // Then: Verify that the filter was invoked
         verify(mockFilter, times(1)).filter(any(), any());
         assertTrue(filterExecuted.get(), "The filter was not executed");
+
+
+
+
+
+
+
+{
+    "templateId": "2",
+    "templateName": "MMBSI Banker",
+    "displaySource": true,
+    "pageManifest": {
+        "pageId": "1",
+        "pageName": "Homepage",
+        "urlPath": "/app/sales",
+        "sections": [
+            {
+                "sectionId": "1",
+                "sectionName": "Dashboard",
+                "displayLabel": true,
+                "editable": true,
+                "checked": true,
+                "route": "/app/sales",
+                "components": [
+                    {
+                        "componentId": "1",
+                        "componentName": "Quick Links",
+                        "type": "text|object",
+                        "displayLabel": false,
+                        "display": true,
+                        "reactComp": "QuickLinks|ReusableComponent",
+                        "input": {
+                            "context": {
+                                "quickLinks": [
+                                    {
+                                        "title": "CCBSI Qlink Dashboard",
+                                        "order": 1,
+                                        "link": "https://go/ccbsidashboard"
+                                    },
+                                    {
+                                        "title": "Dealworks",
+                                        "order": 2,
+                                        "link": "https://go/Dealworks"
+                                    }
+                                ]
+                            }
+                        },
+                        "columns": 1,
+                        "displayOrder": 1,
+                        "editable": true
+                    },
+                    {
+                        "componentId": "2",
+                        "componentName": "KPIs",
+                        "type": "text|object",
+                        "displayLabel": false,
+                        "display": true,
+                        "reactComp": "KPIs|ReusableComponent",
+                        "input": {
+                            "context": {}
+                        },
+                        "columns": 4,
+                        "displayOrder": 2,
+                        "editable": true
+                    },
+                    {
+                        "componentId": "3",
+                        "componentName": "To-Dos",
+                        "type": "text|object",
+                        "displayLabel": true,
+                        "display": true,
+                        "reactComp": "ToDos|ReusableComponent",
+                        "input": {
+                            "context": {}
+                        },
+                        "columns": 2,
+                        "displayOrder": 3,
+                        "editable": true
+                    },
+                    {
+                        "componentId": "4",
+                        "componentName": "Portfolio Prioritization",
+                        "type": "text|object",
+                        "displayLabel": true,
+                        "display": true,
+                        "reactComp": "PortfolioPrioritization|ReusableComponent",
+                        "input": {
+                            "context": {}
+                        },
+                        "columns": 2,
+                        "displayOrder": 4,
+                        "editable": false
+                    },
+                    {
+                        "componentId": "5",
+                        "componentName": "Pipeline",
+                        "type": "text|object",
+                        "displayLabel": true,
+                        "display": true,
+                        "reactComp": "Pipeline|ReusableComponent",
+                        "input": {
+                            "context": {}
+                        },
+                        "columns": 1,
+                        "displayOrder": 5,
+                        "editable": false
+                    }
+                ]
+            }
+        ]
+    },
+    "header": {
+        "component": {
+            "search": {
+                "reactComp": "IQSearch|CTLSearch",
+                "display": true,
+                "enable": "true",
+                "inputProp": {},
+                "type": "search"
+            },
+            "notifcation": {
+                "reactComp": "IQNotification",
+                "display": true,
+                "enable": "true",
+                "inputProp": {},
+                "type": "notification"
+            },
+            "todos": {
+                "reactComp": "ToDos",
+                "display": true,
+                "enable": "true",
+                "inputProp": {},
+                "type": "todos"
+            },
+            "helpLink": {
+                "reactComp": "HelpLink",
+                "display": true,
+                "enable": "true",
+                "inputProp": {},
+                "type": "helplink"
+            },
+            "profileLink": {
+                "reactComp": "ProfileLink",
+                "display": true,
+                "enable": "true",
+                "inputProp": {
+                    "links": [
+                        {
+                            "title": "Go To Salesforce",
+                            "order": 1,
+                            "link": "https://cbnavigator.my.salesforce.com/"
+                        }
+                    ]
+                },
+                "type": "profileLink"
+            }
+        }
+    },
+    "leftNavigation": {
+        "mainNav": [
+            {
+                "mainNavId": "100",
+                "mainNavName": "Home",
+                "standAlone": true,
+                "displayIcon": true,
+                "icon": {
+                    "reactComp": "HomeFilledIcon",
+                    "size": 1.5
+                },
+                "navLink": "/app/sales",
+                "display": true,
+                "displayOrder": 1,
+                "disable": false,
+                "expanded": false,
+                "defaultActive": true,
+                "parent": false,
+                "active": true,
+                "subNavs": []
+            },
+            {
+                "mainNavId": "200",
+                "mainNavName": "Portfolio Management",
+                "standAlone": false,
+                "displayIcon": true,
+                "icon": {
+                    "reactComp": "BusinessCenterFilledIcon",
+                    "size": 1.5
+                },
+                "navLink": null,
+                "display": true,
+                "displayOrder": 2,
+                "disable": true,
+                "expanded": true,
+                "defaultActive": false,
+                "parent": true,
+                "active": true,
+                "subNavs": [
+                    {
+                        "subNavId": "201",
+                        "subNavName": "My portfolio",
+                        "navLink": "/tiles/home/glance",
+                        "display": true,
+                        "displayOrder": 1,
+                        "defaultActive": false,
+                        "disable": false,
+                        "displayIcon": false,
+                        "active": false,
+                        "icon": null
+                    },
+                    {
+                        "subNavId": "202",
+                        "subNavName": "Pipeline & solutioning",
+                        "navLink": "/pipeline?source=nav",
+                        "display": true,
+                        "displayOrder": 2,
+                        "defaultActive": false,
+                        "disable": false,
+                        "displayIcon": false,
+                        "active": false,
+                        "icon": null
+                    },
+                    {
+                        "subNavId": "203",
+                        "subNavName": "Company screener",
+                        "navLink": "/tiles/home/screener",
+                        "display": true,
+                        "displayOrder": 3,
+                        "defaultActive": false,
+                        "disable": false,
+                        "displayIcon": false,
+                        "active": false,
+                        "icon": null
+                    }
+                ]
+            },
+            {
+                "mainNavId": "300",
+                "mainNavName": "Engagement",
+                "standAlone": false,
+                "displayIcon": true,
+                "icon": {
+                    "reactComp": "BusinessCenterFilledIcon",
+                    "size": 1.5
+                },
+                "navLink": null,
+                "display": true,
+                "displayOrder": 3,
+                "disable": true,
+                "expanded": true,
+                "defaultActive": false,
+                "parent": true,
+                "active": true,
+                "subNavs": [
+                    {
+                        "subNavId": "301",
+                        "subNavName": "Engagment center",
+                        "navLink": "/interactions?source=nav&tab=all",
+                        "display": true,
+                        "displayOrder": 1,
+                        "defaultActive": false,
+                        "disable": false,
+                        "displayIcon": false,
+                        "active": false,
+                        "icon": null
+                    },
+                    {
+                        "subNavId": "302",
+                        "subNavName": "Client Ready Materials",
+                        "navLink": null,
+                        "display": true,
+                        "displayOrder": 2,
+                        "defaultActive": false,
+                        "disable": true,
+                        "displayIcon": false,
+                        "active": false,
+                        "icon": null
+                    },
+                    {
+                        "subNavId": "303",
+                        "subNavName": "Leads",
+                        "navLink": null,
+                        "display": true,
+                        "displayOrder": 3,
+                        "defaultActive": false,
+                        "disable": true,
+                        "displayIcon": false,
+                        "active": false,
+                        "icon": null
+                    }
+                ]
+            },
+            {
+                "mainNavId": "400",
+                "mainNavName": "Reports & Performance",
+                "standAlone": false,
+                "displayIcon": true,
+                "icon": {
+                    "reactComp": "BusinessCenterFilledIcon",
+                    "size": 1.5
+                },
+                "navLink": null,
+                "display": true,
+                "displayOrder": 3,
+                "disable": true,
+                "expanded": true,
+                "defaultActive": false,
+                "parent": true,
+                "active": true,
+                "subNavs": [
+                    {
+                        "subNavId": "401",
+                        "subNavName": "My Performance",
+                        "navLink": "/interactions?source=nav&tab=all",
+                        "display": true,
+                        "displayOrder": 1,
+                        "defaultActive": false,
+                        "disable": false,
+                        "displayIcon": false,
+                        "active": false,
+                        "icon": null
+                    },
+                    {
+                        "subNavId": "402",
+                        "subNavName": "Balance trends",
+                        "navLink": null,
+                        "display": true,
+                        "displayOrder": 2,
+                        "defaultActive": false,
+                        "disable": true,
+                        "displayIcon": false,
+                        "active": false,
+                        "icon": null
+                    }
+                ]
+            },
+            {
+                "mainNavId": "500",
+                "mainNavName": "Learning & resources",
+                "standAlone": false,
+                "displayIcon": true,
+                "icon": {
+                    "reactComp": "BusinessCenterFilledIcon",
+                    "size": 1.5
+                },
+                "navLink": null,
+                "display": true,
+                "displayOrder": 3,
+                "disable": true,
+                "expanded": true,
+                "defaultActive": false,
+                "parent": true,
+                "active": true,
+                "subNavs": [
+                    {
+                        "subNavId": "401",
+                        "subNavName": "JPMC product & services",
+                        "navLink": "/app/solutioncontent",
+                        "display": true,
+                        "displayOrder": 1,
+                        "defaultActive": false,
+                        "disable": false,
+                        "displayIcon": false,
+                        "active": false,
+                        "icon": null
+                    },
+                    {
+                        "subNavId": "402",
+                        "subNavName": "Additional resources",
+                        "navLink": "/r/external-links",
+                        "display": true,
+                        "displayOrder": 1,
+                        "defaultActive": false,
+                        "disable": false,
+                        "displayIcon": false,
+                        "active": false,
+                        "icon": null
+                    }
+                ]
+            }
+        ]
+    },
+    "appPreferences": {},
+    "notificationPreferences": {}
+}
