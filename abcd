@@ -98,3 +98,39 @@ public class OBOGatewayFilterFactory{
     }
 
 }
+
+
+
+
+
+    public String getSFDCToken(String cbxToken) throws IOException {
+
+        String crmUrl = crmProperties.getUrl();
+        HttpHeaders headers =  new HttpHeaders();
+        headers.add(TokenClaimConstants.CBX_TOKEN,cbxToken);
+
+        final ResponseEntity<AuthResponse> authResponseResponseEntity = webClient.get().uri(crmUrl).headers(httpHeaders -> {
+                    httpHeaders.addAll(headers);
+                })
+                .retrieve()
+                .toEntity(AuthResponse.class)
+                .onErrorResume(error  -> {
+                    LOGGER.error(error.toString());
+                    return null;
+                })
+                .block();
+        if (authResponseResponseEntity == null || authResponseResponseEntity.getBody() == null)
+            throw new IOException("An error occurred during call to CRM service.");
+        return authResponseResponseEntity.getBody().getAccessToken();
+    }
+
+    @Test
+    void testGetSFDCToken() throws IOException {
+        AuthResponse authResponse = new AuthResponse();
+        authResponse.setAccessToken("accesstoken");
+        webClient = Mockito.mock(WebClient.class);
+
+        when(webClient.get()).thenReturn(null);
+        String result = tokenService.getSFDCToken("cbxToken");
+        Assertions.assertEquals("replaceMeWithExpectedResult", result);
+    }
